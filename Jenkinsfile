@@ -12,6 +12,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -34,11 +35,22 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh '''
-                       mvn sonar:sonar \
-                       -Dsonar.projectKey=aws-devops-demo \
-                       -Dsonar.projectName=aws-devops-demo
-                    '''
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        sh '''
+                           mvn sonar:sonar \
+                           -Dsonar.projectKey=aws-devops-demo \
+                           -Dsonar.projectName=aws-devops-demo \
+                           -Dsonar.login=$SONAR_TOKEN
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage("Quality Gate") {
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
@@ -70,7 +82,7 @@ pipeline {
             steps {
                 sh '''
                     docker rm -f aws-devops-demo || true
-                    docker run -d --name aws-devops-demo -p 8081:8081 $DOCKER_IMAGE:latest
+                    docker run -d --name aws-devops-demo -p 8081:8080 $DOCKER_IMAGE:latest
                 '''
             }
         }
